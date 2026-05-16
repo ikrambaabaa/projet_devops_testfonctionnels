@@ -9,6 +9,8 @@ from sqlalchemy import (
 
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy import DateTime
+from datetime import datetime
 
 from database import Base
 
@@ -37,10 +39,16 @@ class Project(Base):
         back_populates="project"
     )
 
+    configs = relationship(
+        "ProjectConfig",
+        back_populates="project"
+    )
+
 
 # =========================
 # SFD DOCUMENT
 # =========================
+
 class SFDDocument(Base):
 
     __tablename__ = "sfd_document"
@@ -80,6 +88,8 @@ class SFDDocument(Base):
         "TestCase",
         back_populates="sfd"
     )
+
+
 # =========================
 # TEST CASE
 # =========================
@@ -89,6 +99,7 @@ class TestCase(Base):
     __tablename__ = "test_case"
 
     id = Column(Integer, primary_key=True)
+    project_id = Column(Integer)
 
     sfd_id = Column(
         Integer,
@@ -105,7 +116,7 @@ class TestCase(Base):
 
     title = Column(String(500))
 
-    regle_metier = Column(String(255))
+    regle_metier = Column(Text)
 
     priorite = Column(String(20))
 
@@ -278,4 +289,152 @@ class StepResult(Base):
     step = relationship(
         "TestStep",
         back_populates="step_results"
+    )
+
+
+# =========================
+# PROJECT CONFIG
+# =========================
+
+class ProjectConfig(Base):
+
+    __tablename__ = "project_configs"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    project_id = Column(
+        Integer,
+        ForeignKey("project.id")
+    )
+
+    # GitLab
+    gitlab_repository = Column(String)
+
+    branch_pipeline = Column(String)
+
+    gitlab_token = Column(String)
+
+    pipeline_yaml = Column(String)
+
+    # URLs
+    frontend_url = Column(String)
+
+    backend_url = Column(String)
+
+    # Database
+    database_host = Column(String)
+
+    database_name = Column(String)
+
+    # Stack
+    frontend_framework = Column(String)
+
+    backend_framework = Column(String)
+
+    automation_framework = Column(String)
+
+    ai_model = Column(String)
+
+    # Workflow
+    workflow_runtime = Column(Text)
+
+    # Runtime
+    base_url = Column(String)
+
+    browser = Column(String)
+
+    environment = Column(String)
+
+    timeout = Column(String)
+
+    # QA
+    tests_folder = Column(String)
+
+    screenshots_folder = Column(String)
+
+    reports_folder = Column(String)
+
+    execution_mode = Column(String)
+
+    project = relationship(
+    "Project",
+    back_populates="configs"
+)
+
+
+# =========================
+# PROJECT VERSION
+# =========================
+
+class ProjectVersion(Base):
+
+    __tablename__ = "project_versions"
+
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
+
+    project_id = Column(
+        Integer
+    )
+
+    version = Column(
+        String
+    )
+
+    type = Column(
+        String
+    )
+
+    status = Column(
+        String
+    )
+
+    description = Column(
+        String
+    )
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
+    )
+class WorkflowStep(Base):
+
+    __tablename__ = "workflow_steps"
+
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
+
+    project_id = Column(
+        Integer
+    )
+
+    workflow_id = Column(
+        String
+    )
+
+    title = Column(
+        String
+    )
+
+    module = Column(
+        String
+    )
+
+    status = Column(
+        String
+    )
+
+    step_order = Column(
+        Integer
+    )
+
+    created_at = Column(
+        DateTime,
+        default=datetime.utcnow
     )

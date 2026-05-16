@@ -33,53 +33,186 @@ class SFDRequest(BaseModel):
     sfd: str
 
 
-# 🧠 PROMPT MÉTIER
+# 🧠 PROMPT MÉTIER QA FONCTIONNEL
+# 🧠 PROMPT QA MÉTIER AVANCÉ
 PROMPT = """
-Tu es un expert QA senior spécialisé en tests fonctionnels et tests métier.
+Tu es un expert QA senior spécialisé exclusivement en tests fonctionnels métier.
 
-OBJECTIF :
-Générer UNIQUEMENT des cas de tests métier à partir du SFD fourni.
+MISSION :
+Analyser le SFD puis générer un très grand nombre de cas de tests métier réalistes.
+
+OBJECTIF PRINCIPAL :
+Maximiser la couverture fonctionnelle métier.
 
 INTERDICTIONS STRICTES :
-- Aucun test technique
-- Aucun test API / backend / base de données
-- Aucun test performance ou sécurité technique
-- Aucun vocabulaire technique (endpoint, request, response, code, etc.)
+Ne jamais générer :
+- tests techniques
+- tests unitaires
+- tests API
+- tests backend
+- tests SQL
+- tests performance
+- tests sécurité technique
+- tests code source
 
-FOCUS :
-- Comportement utilisateur
-- Règles métier
-- Scénarios réels
+INTERDICTION DE VOCABULAIRE TECHNIQUE :
+Ne jamais utiliser :
+endpoint, request, response, API, SQL,
+database, backend, frontend, JSON,
+code, méthode, fonction, pytest,
+assertion, payload.
+
+FOCUS OBLIGATOIRE :
+- règles métier
+- comportement utilisateur
+- workflow métier
+- validations métier
+- scénarios réels
+- erreurs métier
+- cas limites métier
+- dépendances métier
+- variantes fonctionnelles
+
+OBLIGATION :
+Générer un maximum de scénarios métier possibles.
+
+Générer :
+- scénarios nominaux
+- scénarios erreurs
+- scénarios limites
+- scénarios alternatifs
+- scénarios exceptionnels
+- validations métier
+- refus métier
+- droits utilisateur
+- contraintes métier
+- cas de bord
+- dépendances entre scénarios
+- variantes métier
+- workflows complexes
+- scénarios liés hiérarchiquement
+
+EXEMPLES DE TESTS ATTENDUS :
+✅ paiement refusé
+✅ solde insuffisant
+✅ produit hors stock
+✅ utilisateur bloqué
+✅ montant maximum
+✅ dépassement plafond
+✅ panier vide
+✅ devise invalide
+✅ droits insuffisants
+✅ compte inexistant
+
+EXEMPLES INTERDITS :
+❌ test API
+❌ test endpoint
+❌ test SQL
+❌ test code Python
+❌ test backend
+❌ validation HTTP
 
 EXIGENCES :
-1. Identifier les règles métier (RG)
-2. Générer des tests couvrant :
+1. Identifier toutes les règles métier
+2. Générer le maximum de cas possibles
+3. Générer minimum 20 cas de tests
+4. Générer :
    - Nominal
    - Limite
    - Erreur
-3. Chaque test doit être réaliste
-4. Ajouter priorité et sévérité métier
+5. Ajouter :
+   - priorité métier
+   - sévérité métier
+6. Générer :
+   - préconditions
+   - étapes détaillées
+   - données d'entrée
+   - résultats attendus
+7. Maximiser la couverture métier
+8. Générer des scénarios utilisateur réalistes
+9. Détecter automatiquement les dépendances logiques entre scénarios métier.
+
+RÈGLES :
+- Si un test dépend d’un autre scénario métier, utiliser parent_test_id.
+- Le scénario principal doit avoir parent_test_id = null.
+- Les scénarios enfants doivent référencer l’identifiant numérique du parent.
+- Les scénarios liés doivent former une hiérarchie logique.
+- Les variantes d’un même scénario doivent être reliées entre elles.
+
+EXEMPLES :
+- Ajout bénéficiaire → parent null
+- Validation bénéficiaire → parent = test ajout bénéficiaire
+- Virement vers bénéficiaire validé → parent = test validation bénéficiaire
+
+- Création compte → parent null
+- Activation compte → parent = création compte
+- Connexion utilisateur → parent = activation compte
+
+10. Lorsqu’un scénario possède plusieurs variantes métier :
+    - le scénario principal doit avoir version = 1
+    - les variantes doivent avoir version = 2, 3, etc.
+    - les variantes doivent utiliser parent_test_id
+    - les variantes doivent réutiliser le même workflow métier
+
+11. Générer un status QA pour chaque test :
+    - draft
+    - ready
+    - approved
+
+12. Générer des scénarios dépendants les uns des autres
 
 FORMAT JSON STRICT :
+
 [
   {
     "id": "TM001",
-    "titre": "Description du test",
-    "regle_metier": "RG1",
+
+    "parent_test_id": null,
+
+    "version": 1,
+
+    "status": "draft",
+
+    "titre": "Description métier",
+
+    "regle_metier": "Description complète de la règle métier liée au test",
+
     "preconditions": [],
+
     "etapes": [],
+
     "donnees_entree": {},
+
     "resultats_attendus": [],
+
     "priorite": "Haute | Moyenne | Basse",
+
     "severite": "Critique | Élevée | Moyenne | Faible",
+
     "type": "Nominal | Limite | Erreur"
   }
 ]
 
 CONTRAINTES :
-- Résultats attendus = LISTE obligatoire
-- Ne pas inventer des règles
-- Maximiser couverture métier
+- JSON uniquement
+- Aucun texte hors JSON
+- Ne jamais expliquer
+- Ne jamais commenter
+- Ne jamais utiliser markdown
+- Tous les champs obligatoires
+- Résultats attendus = LISTE
+- Étapes = LISTE
+- Préconditions = LISTE
+- parent_test_id doit être un entier numérique ou null
+- version doit être un entier numérique
+- regle_metier doit contenir le texte explicite de la règle métier
+- Ne jamais utiliser uniquement RG1, RG2, RG3
+- Générer des relations logiques entre certains tests
+- Générer des variantes métier réalistes
+- Ne jamais inventer de logique absente du SFD
+- Générer uniquement des tests fonctionnels métier
+- Ne jamais générer de tests techniques
+- Retourner uniquement le tableau JSON
 
 SFD :
 """
@@ -90,7 +223,7 @@ def extract_json(text):
     text = re.sub(r"```json", "", text)
     text = re.sub(r"```", "", text).strip()
 
-    match = re.search(r"\[\s*{.*}\s*\]", text, re.DOTALL)
+    match = re.search(r"\[.*\]", text, re.DOTALL)
     if not match:
         raise ValueError("JSON non trouvé")
 
@@ -98,6 +231,7 @@ def extract_json(text):
     json_text = json_text.replace("\n", " ")
 
     try:
+        print("JSON détecté :", json_text[:500])
         return json.loads(json_text)
     except Exception as e:
         raise ValueError(f"JSON invalide: {e}")
@@ -277,18 +411,43 @@ def generate_tests(request: SFDRequest):
             # 🧠 Cas de test
             test_case = TestCase(
                 sfd_id=sfd_doc.id,
-                version=1,
+                # 🔗 Relation parent/enfant
+                parent_test_id=int(
+    str(t.get("parent_test_id", "0"))
+    .replace("TM", "")
+) if t.get("parent_test_id") else None,
+                # 📌 Version dynamique
+                version=t.get("version", 1),
+                # 📝 Informations métier
                 title=t.get("titre"),
                 regle_metier=t.get("regle_metier"),
                 priorite=t.get("priorite", "Moyenne"),
                 severite=t.get("severite", "Moyenne"),
                 type=t.get("type", "Nominal"),
+                # 📊 Score QA
                 score=t.get("score", 0),
+                # 🔄 Workflow QA
                 status=t.get("status", "draft")
             )
             db.add(test_case)
             db.commit()
             db.refresh(test_case)
+
+            # ▶️ Création execution
+            execution = TestExecution(
+                test_case_id=test_case.id,
+                # 👤 utilisateur execution
+                executed_by="QA System",
+                # 🌍 environnement
+                environment="TEST",
+                # 📌 statut execution
+                status="Not Executed",
+                # 📝 commentaire execution
+                comments="Execution automatique générée par IA"
+            )
+            db.add(execution)
+            db.commit()
+            db.refresh(execution)
 
             etapes = t.get("etapes", [])
             resultats = t.get("resultats_attendus", [])
@@ -304,6 +463,16 @@ def generate_tests(request: SFDRequest):
                 db.add(test_step)
                 db.commit()
                 db.refresh(test_step)
+
+                # 📊 Résultat étape
+                step_result = StepResult(
+                    test_execution_id=execution.id,
+                    step_id=test_step.id,
+                    result="Not Executed",
+                    comment="En attente"
+                )
+                db.add(step_result)
+                db.commit()
 
                 # ✅ Résultat attendu
                 if index <= len(resultats):
