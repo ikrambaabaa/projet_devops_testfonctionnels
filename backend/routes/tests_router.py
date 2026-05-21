@@ -155,48 +155,53 @@ def get_tests(
 
             test_list.append({
 
-                "id":
-                    f"TM-{t.id:03d}",
+    "id":
+        f"TM-{t.id:03d}",
 
-                "titre":
-                    t.title,
+    "title":
+        t.title,
 
-                "regle_metier":
-                    t.regle_metier,
+    "scenario":
+        t.regle_metier,
 
-                "priorite":
-                    t.priorite,
+    "priority":
+        t.priorite,
 
-                "severite":
-                    t.severite,
+    "severity":
+        t.severite,
 
-                "type":
-                    t.type,
+    "type":
+        t.type,
 
-                "score":
-                    t.score,
+    "score":
+        t.score,
 
-                "status":
-                    t.status,
+    "status":
+        t.status,
 
-                "version":
-                    t.version,
+    "version":
+        t.version,
 
-                "ai_confidence":
-                    t.ai_confidence,
+    "framework":
+        "Playwright",
 
-                "sfd_id":
-                    t.sfd_id,
+    "steps": [
 
-                "date":
+        {
 
-                    str(t.created_at)[:10]
+            "id":
+                s.id,
 
-                    if t.created_at
+            "description":
+                s.description,
 
-                    else "N/A"
-            })
+            "order":
+                s.step_order
+        }
 
+        for s in t.steps
+    ]
+})
         return {
 
             "project": {
@@ -242,8 +247,7 @@ def get_tests(
     "/projects/{project_id}/tests/generate-script"
 )
 def generate_playwright_script(
-    project_id: int,
-    request: GenerateScriptRequest
+    project_id: int
 ):
 
     if not API_KEY:
@@ -257,7 +261,10 @@ def generate_playwright_script(
 
     try:
 
+        # =========================
         # CHECK PROJECT
+        # =========================
+
         project = db.query(Project).filter(
             Project.id == project_id
         ).first()
@@ -269,24 +276,55 @@ def generate_playwright_script(
                 detail="Projet non trouvé"
             )
 
-        prompt = f'''
-Tu es un expert QA Playwright.
+        # =========================
+        # STATIC PROMPT
+        # =========================
 
-À partir de ce SFD métier,
-génère un script Playwright complet.
+        prompt = '''
+Tu es un expert QA Automation spécialisé en Playwright.
 
-RÈGLES :
+Ta mission est de générer un script Playwright professionnel
+à partir d’un workflow métier SFD.
+
+CONTRAINTES :
 - Utiliser @playwright/test
-- Tests fonctionnels uniquement
-- Assertions métier
-- Sélecteurs réalistes
-- Format CommonJS
+- Utiliser JavaScript CommonJS
+- Générer un test réaliste et exécutable
+- Ajouter test(), expect()
+- Ajouter commentaires QA
+- Ajouter étapes métier
+- Utiliser page.goto()
+- Utiliser page.fill()
+- Utiliser page.click()
+- Utiliser assertions métier avec expect()
+- Utiliser des sélecteurs réalistes
+- Gérer cas succès et cas erreur
+- Code propre et structuré
+- Retourner uniquement le code JavaScript
 
-SFD :
-{request.sfd_content}
+WORKFLOW MÉTIER :
+- Création facture client
+- Validation commande
+- Paiement facture
+- Gestion remise client
+- Contrôle statut paiement
 
-Retourner uniquement le code JavaScript.
+FORMAT ATTENDU :
+
+const { test, expect } = require('@playwright/test');
+
+test('Nom scénario', async ({ page }) => {
+
+    // étapes métier
+
+});
+
+Retourner uniquement le script Playwright complet.
 '''
+
+        # =========================
+        # HEADERS
+        # =========================
 
         headers = {
 
@@ -296,6 +334,10 @@ Retourner uniquement le code JavaScript.
             "Content-Type":
                 "application/json"
         }
+
+        # =========================
+        # PAYLOAD
+        # =========================
 
         payload = {
 
@@ -313,6 +355,10 @@ Retourner uniquement le code JavaScript.
                 }
             ]
         }
+
+        # =========================
+        # OPENROUTER API
+        # =========================
 
         try:
 
@@ -333,7 +379,8 @@ Retourner uniquement le code JavaScript.
                 "choices"
             ][0]["message"]["content"]
 
-            # CLEAN
+            # CLEAN RESPONSE
+
             script = re.sub(
                 r"```javascript",
                 "",
@@ -359,7 +406,10 @@ Retourner uniquement le code JavaScript.
                 detail=f"Erreur IA: {e}"
             )
 
+        # =========================
         # SAVE FILE
+        # =========================
+
         try:
 
             os.makedirs(
@@ -392,6 +442,12 @@ Retourner uniquement le code JavaScript.
 
             saved = False
 
+            file_path = None
+
+        # =========================
+        # RESPONSE
+        # =========================
+
         return {
 
             "message":
@@ -417,8 +473,8 @@ Retourner uniquement le code JavaScript.
         }
 
     finally:
-        db.close()
 
+        db.close()
 
 # =========================
 # GET TEST DETAIL

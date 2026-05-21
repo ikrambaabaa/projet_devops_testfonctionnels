@@ -124,65 +124,121 @@ function TestsSection({
   // GENERATE TESTS
   // =========================
 
-  const generateTests =
-    async () => {
+// =========================
+// GENERATE TESTS
+// =========================
 
-      try {
+const generateTests =
+  async () => {
 
-        const response =
-          await fetch(
+    try {
 
-            `http://127.0.0.1:8000/api/projects/${projectId}/generate-tests`,
+      const response =
+        await fetch(
 
-            {
+          `http://127.0.0.1:8000/api/projects/${projectId}/generate-tests`,
 
-              method: "POST",
+          {
 
-              headers: {
+            method: "POST",
 
-                "Content-Type":
-                  "application/json",
-              },
+            headers: {
 
-              body: JSON.stringify({
+              "Content-Type":
+                "application/json",
+            },
 
-                sfd: sfdInput,
-              }),
-            }
-          );
+            body: JSON.stringify({
 
-        const data =
-          await response.json();
-
-        console.log(data);
-
-        setGeneratedTests(
-
-          JSON.stringify(
-            data.tests,
-            null,
-            2
-          )
+              sfd: sfdInput,
+            }),
+          }
         );
 
-        setGeneratedScript(
+      const data =
+        await response.json();
 
-          data.script || ""
-        );
+      console.log(data);
 
-        alert(
-          "Tests IA générés"
-        );
+      setGeneratedTests(
 
-        loadTests();
+        JSON.stringify(
+          data.tests,
+          null,
+          2
+        )
+      );
 
-      } catch (err) {
+      alert(
+        "Tests IA générés"
+      );
 
-        console.log(err);
-      }
-    };
+      loadTests();
+
+    } catch (err) {
+
+      console.log(err);
+
+      alert(
+        "Erreur génération tests"
+      );
+    }
+};
 
 
+// =========================
+// GENERATE PLAYWRIGHT SCRIPT
+// =========================
+
+const generatePlaywrightScript =
+  async () => {
+
+    try {
+
+      const response =
+  await fetch(
+
+    `http://127.0.0.1:8000/api/projects/${projectId}/tests/generate-script`,
+
+    {
+
+      method: "POST",
+
+      headers: {
+
+        "Content-Type":
+          "application/json"
+      },
+
+      body: JSON.stringify({})
+    }
+);
+
+      const data =
+        await response.json();
+
+      console.log(data);
+
+      setGeneratedScript(
+
+        data.script ||
+
+        "Aucun script généré"
+      );
+
+      alert(
+        "Script Playwright généré"
+      );
+
+    } catch (err) {
+
+      console.log(err);
+
+      alert(
+        "Erreur génération script"
+      );
+    }
+};
   // =========================
   // LOADING
   // =========================
@@ -449,7 +505,47 @@ function TestsSection({
                         <td>
                           Playwright
                         </td>
+<td>
 
+  {
+
+    test.steps?.length > 0
+
+      ? (
+
+          <ul
+            style={{
+              paddingLeft: "18px"
+            }}
+          >
+
+            {
+
+              test.steps.map(
+
+                (
+                  step,
+                  idx
+                ) => (
+
+                  <li key={idx}>
+
+                    {
+                      step.description
+                    }
+
+                  </li>
+                )
+              )
+            }
+
+          </ul>
+        )
+
+      : "Aucune étape"
+  }
+
+</td>
                       </tr>
                     )
                   )
@@ -562,11 +658,13 @@ function TestsSection({
         >
 
           <button
-            onClick={generateTests}
-            style={generateBtn}
-          >
-            Générer Script Playwright
-          </button>
+  onClick={
+    generatePlaywrightScript
+  }
+  style={generateBtn}
+>
+  Générer Script Playwright
+</button>
 
         </div>
 

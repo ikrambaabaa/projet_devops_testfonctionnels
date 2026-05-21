@@ -11,6 +11,9 @@ function SFDSection({ projectId }) {
   const [requirements, setRequirements] =
     useState([]);
 
+  const [selectedFile, setSelectedFile] =
+    useState(null);
+
   const [stats, setStats] =
     useState({
 
@@ -167,7 +170,7 @@ function SFDSection({ projectId }) {
       console.log(data);
 
       alert(
-        "SFD ajouté"
+        "SFD ajouté avec succès"
       );
 
       setFormData({
@@ -194,6 +197,10 @@ function SFDSection({ projectId }) {
     } catch (err) {
 
       console.log(err);
+
+      alert(
+        "Erreur création SFD"
+      );
     }
   };
 
@@ -210,10 +217,26 @@ function SFDSection({ projectId }) {
         const response =
           await fetch(
 
-            `http://127.0.0.1:8000/api/projects/${projectId}/generate-tests`,
+            `http://127.0.0.1:8000/api/projects/${projectId}/sfd/generate`,
 
             {
+
               method: "POST",
+
+              headers: {
+
+                "Content-Type":
+                  "application/json",
+              },
+
+              body: JSON.stringify({
+
+                sfd_title:
+                  formData.title,
+
+                sfd_content:
+                  formData.description
+              })
             }
           );
 
@@ -229,6 +252,71 @@ function SFDSection({ projectId }) {
       } catch (err) {
 
         console.log(err);
+
+        alert(
+          "Erreur génération IA"
+        );
+      }
+    };
+
+
+  // =========================
+  // UPLOAD PDF / DOCX
+  // =========================
+
+  const uploadSFDFile =
+    async () => {
+
+      if (!selectedFile) {
+
+        alert(
+          "Choisir un fichier"
+        );
+
+        return;
+      }
+
+      const uploadData =
+        new FormData();
+
+      uploadData.append(
+        "file",
+        selectedFile
+      );
+
+      try {
+
+        const response =
+          await fetch(
+
+            `http://127.0.0.1:8000/api/projects/${projectId}/sfd/upload`,
+
+            {
+
+              method: "POST",
+
+              body: uploadData
+            }
+          );
+
+        const data =
+          await response.json();
+
+        console.log(data);
+
+        alert(
+          "Document uploadé"
+        );
+
+        loadSFD();
+
+      } catch (err) {
+
+        console.log(err);
+
+        alert(
+          "Erreur upload document"
+        );
       }
     };
 
@@ -300,40 +388,23 @@ function SFDSection({ projectId }) {
         }}
       >
 
-        <div
+        <h2
           style={{
-            display: "flex",
-            justifyContent:
-              "space-between",
-
-            alignItems: "center",
+            margin: 0,
+            fontSize: "30px",
           }}
         >
+          SFD - Spécifications Fonctionnelles
+        </h2>
 
-          <div>
-
-            <h2
-              style={{
-                margin: 0,
-                fontSize: "30px",
-              }}
-            >
-              SFD - Spécifications Fonctionnelles
-            </h2>
-
-            <p
-              style={{
-                marginTop: "10px",
-                opacity: 0.85,
-              }}
-            >
-              Gestion intelligente des exigences métier
-            </p>
-
-          </div>
-
-        </div>
-
+        <p
+          style={{
+            marginTop: "10px",
+            opacity: 0.85,
+          }}
+        >
+          Gestion intelligente des exigences métier
+        </p>
 
         {/* STATS */}
         <div
@@ -399,7 +470,6 @@ function SFDSection({ projectId }) {
           </div>
 
         </div>
-
 
         <table width="100%">
 
@@ -535,6 +605,24 @@ function SFDSection({ projectId }) {
         </div>
 
 
+        {/* FILE */}
+        <div style={{ marginTop: "25px" }}>
+
+          <input
+            type="file"
+            accept=".pdf,.doc,.docx"
+
+            onChange={(e) => {
+
+              setSelectedFile(
+                e.target.files[0]
+              );
+            }}
+          />
+
+        </div>
+
+
         <div
           style={{
             display: "grid",
@@ -640,13 +728,13 @@ function SFDSection({ projectId }) {
         </div>
 
 
+        {/* BUTTONS */}
         <div
           style={{
             display: "flex",
-            justifyContent:
-              "space-between",
-
+            gap: "15px",
             marginTop: "30px",
+            flexWrap: "wrap",
           }}
         >
 
@@ -657,6 +745,12 @@ function SFDSection({ projectId }) {
             Sauvegarder SFD
           </button>
 
+          <button
+            onClick={uploadSFDFile}
+            style={uploadBtn}
+          >
+            Upload PDF / DOCX
+          </button>
 
           <button
             onClick={generateAITests}
@@ -725,6 +819,15 @@ const textareaStyle = {
 
 const saveBtn = {
   background: "#0f172a",
+  color: "white",
+  border: "none",
+  padding: "14px 24px",
+  borderRadius: "12px",
+  cursor: "pointer",
+};
+
+const uploadBtn = {
+  background: "#0f766e",
   color: "white",
   border: "none",
   padding: "14px 24px",

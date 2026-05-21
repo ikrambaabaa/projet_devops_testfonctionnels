@@ -26,26 +26,26 @@ function ProjectDetails({
 
   const tabs = [
 
-    "Aperçu",
+  "Aperçu",
 
-    "Configuration",
+  "Configuration",
 
-    "SFD",
+  "SFD",
 
-    "Workflow Métier",
+  "Workflow Métier",
 
-    "Tests IA",
+  "Tests IA",
 
-    "Validation QA",
+  "Validation QA",
 
-    "Pipelines",
+  "Versioning",
 
-    "Exécutions",
+  "Pipelines",
 
-    "Rapports",
+  "Exécutions",
 
-    "Versioning",
-  ];
+  "Rapports",
+];
 
 
   return (

@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from database import SessionLocal
 
 from models import ProjectVersion
-
+from models import Module
 router = APIRouter()
 
 
@@ -54,6 +54,7 @@ def get_versioning(project_id: int):
                 releases += 1
 
             data.append({
+                "id": version.id,
 
                 "version":
                     version.version,
@@ -107,6 +108,16 @@ def get_versioning(project_id: int):
     finally:
 
         db.close()
+        modules = (
+
+    db.query(Module)
+
+    .filter(
+        Module.project_id == project_id
+    )
+
+    .all()
+)
 
 
 # =========================
@@ -163,6 +174,109 @@ def create_version(project_id: int):
 
             "version":
                 new_version
+        }
+
+    finally:
+
+        db.close()
+        
+        # =========================
+# DELETE VERSION
+# =========================
+
+@router.delete(
+    "/version/{version_id}"
+)
+def delete_version(
+    version_id: int
+):
+
+    db = SessionLocal()
+
+    try:
+
+        version = (
+
+            db.query(ProjectVersion)
+
+            .filter(
+                ProjectVersion.id == version_id
+            )
+
+            .first()
+        )
+
+        if not version:
+
+            return {
+
+                "error":
+                    "Version introuvable"
+            }
+
+        db.delete(version)
+
+        db.commit()
+
+        return {
+
+            "message":
+                "Version supprimée"
+        }
+
+    finally:
+
+        db.close()
+        # =========================
+# RUN QA PIPELINE
+# =========================
+
+@router.post(
+    "/projects/{project_id}/version/{version_id}/run"
+)
+def run_version_pipeline(
+
+    project_id: int,
+
+    version_id: int
+):
+
+    db = SessionLocal()
+
+    try:
+
+        version = (
+
+            db.query(ProjectVersion)
+
+            .filter(
+                ProjectVersion.id == version_id
+            )
+
+            .first()
+        )
+
+        if not version:
+
+            return {
+
+                "error":
+                    "Version introuvable"
+            }
+
+        # =========================
+        # SIMULATION QA PIPELINE
+        # =========================
+
+        print(
+            f"Running QA Pipeline for {version.version}"
+        )
+
+        return {
+
+            "message":
+
+                f"Pipeline QA lancé pour {version.version}"
         }
 
     finally:

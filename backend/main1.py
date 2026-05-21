@@ -16,7 +16,7 @@ from routes.config import router as config_router
 from routes.validation_router import router as validation_router
 from routes.workflow_router import router as workflow_router
 from routes.versioning_router import router as versioning_router
-
+from routes import playwright_router
 Base.metadata.create_all(
     bind=engine
 )
@@ -97,6 +97,10 @@ app.include_router(
 )
 app.include_router(
     versioning_router,
+    prefix="/api"
+)
+app.include_router(
+    playwright_router.router,
     prefix="/api"
 )
 # =========================

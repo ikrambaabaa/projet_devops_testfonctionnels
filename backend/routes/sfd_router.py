@@ -1,19 +1,27 @@
-from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
-
+from PyPDF2 import PdfReader
+import io
 from database import SessionLocal
+from models import TestStep
 
 from models import (
     SFDDocument,
     Project,
-    TestCase
+    TestCase,
+    TestStep
 )
-
+from fastapi import (
+    APIRouter,
+    HTTPException,
+    UploadFile,
+    File
+)
 import requests
 import os
 import json
 import re
+from PyPDF2 import PdfReader
 
 router = APIRouter()
 
@@ -21,7 +29,35 @@ API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 PROMPT = """
 Tu es un expert QA senior spécialisé exclusivement en tests fonctionnels métier.
+IMPORTANT ABSOLU :
 
+Le système doit générer les tests
+UNIQUEMENT à partir du SFD fourni.
+
+Interdiction totale d’inventer :
+- ecommerce
+- commandes
+- clients
+- factures
+- paiements
+- devis
+- CRM
+- modules non présents dans le SFD
+
+Le domaine métier doit être déduit
+strictement du document SFD.
+
+Si le SFD concerne TodoMVC,
+les tests doivent porter uniquement sur :
+- ajout tâche
+- suppression tâche
+- filtres
+- tâches complétées
+- compteur tâches
+- workflow todo
+
+Ne jamais réutiliser des anciens scénarios
+d’autres projets.
 MISSION :
 Analyser le SFD puis générer un très grand nombre de cas de tests métier réalistes.
 
@@ -106,15 +142,27 @@ SFD :
 """
 
 
-# =========================
+# =====================================================
 # REQUEST MODELS
-# =========================
+# =====================================================
 
 class SFDCreateRequest(BaseModel):
 
+    requirement_id: str
+
+    module: str
+
+    priority: str
+
+    version: str
+
     title: str
 
-    content: str
+    description: str
+
+    validation_conditions: str
+
+    status: str
 
     parent_id: Optional[int] = None
 
@@ -126,22 +174,19 @@ class SFDGenerateRequest(BaseModel):
     sfd_content: str
 
 
-# =========================
-# GET PROJECT SFD
-# =========================
+# =====================================================
+# GET SFD LIST
+# =====================================================
 
 @router.get(
     "/projects/{project_id}/sfd"
 )
-def get_sfd_list(
-    project_id: int
-):
+def get_sfd_list(project_id: int):
 
     db = SessionLocal()
 
     try:
 
-        # CHECK PROJECT
         project = db.query(Project).filter(
             Project.id == project_id
         ).first()
@@ -153,52 +198,13 @@ def get_sfd_list(
                 detail="Projet non trouvé"
             )
 
-        # STATS
-        total_sfd = db.query(
-            SFDDocument
-        ).filter(
-            SFDDocument.project_id == project_id
-        ).count()
-
         sfds = db.query(
             SFDDocument
         ).filter(
             SFDDocument.project_id == project_id
-        ).order_by(
-            SFDDocument.created_at.desc()
         ).all()
 
-        sfd_ids = [s.id for s in sfds]
-
-        total_tests = db.query(
-            TestCase
-        ).filter(
-            TestCase.sfd_id.in_(sfd_ids)
-        ).count() if sfd_ids else 0
-
-        total_validated = db.query(
-            TestCase
-        ).filter(
-            TestCase.sfd_id.in_(sfd_ids),
-            TestCase.status == "approved"
-        ).count() if sfd_ids else 0
-
-        total_draft = db.query(
-            TestCase
-        ).filter(
-            TestCase.sfd_id.in_(sfd_ids),
-            TestCase.status == "draft"
-        ).count() if sfd_ids else 0
-
-        total_critical = db.query(
-            TestCase
-        ).filter(
-            TestCase.sfd_id.in_(sfd_ids),
-            TestCase.priorite == "Haute"
-        ).count() if sfd_ids else 0
-
-        # SFD LIST
-        sfd_list = []
+        requirements = []
 
         for sfd in sfds:
 
@@ -208,30 +214,36 @@ def get_sfd_list(
                 TestCase.sfd_id == sfd.id
             ).count()
 
-            sfd_list.append({
+            requirements.append({
 
                 "id":
                     sfd.id,
 
+                "requirement_id":
+                    sfd.requirement_id,
+
+                "module":
+                    sfd.module,
+
+                "priority":
+                    sfd.priority,
+
+                "version":
+                    sfd.version,
+
                 "title":
                     sfd.title,
 
-                "content_preview":
+                "description":
+                    sfd.description,
 
-                    sfd.content[:100] + "..."
+                "validation_conditions":
+                    sfd.validation_conditions,
 
-                    if sfd.content
-                    and len(sfd.content) > 100
+                "status":
+                    sfd.status,
 
-                    else sfd.content,
-
-                "project_id":
-                    sfd.project_id,
-
-                "parent_id":
-                    sfd.parent_id,
-
-                "test_count":
+                "tests":
                     test_count,
 
                 "date":
@@ -254,41 +266,29 @@ def get_sfd_list(
                     project.name
             },
 
-            "statistics": {
+            "requirements":
+                requirements,
 
-                "total_sfd":
-                    total_sfd,
-
-                "total_tests":
-                    total_tests,
-
-                "total_validated":
-                    total_validated,
-
-                "total_draft":
-                    total_draft,
-
-                "total_critical":
-                    total_critical
-            },
-
-            "sfd_list":
-                sfd_list
+            "total":
+                len(requirements)
         }
 
     finally:
+
         db.close()
 
 
-# =========================
+# =====================================================
 # CREATE SFD
-# =========================
+# =====================================================
 
 @router.post(
     "/projects/{project_id}/sfd"
 )
 def create_sfd(
+
     project_id: int,
+
     request: SFDCreateRequest
 ):
 
@@ -296,7 +296,6 @@ def create_sfd(
 
     try:
 
-        # CHECK PROJECT
         project = db.query(Project).filter(
             Project.id == project_id
         ).first()
@@ -308,16 +307,35 @@ def create_sfd(
                 detail="Projet non trouvé"
             )
 
-        # CREATE SFD
         sfd_doc = SFDDocument(
 
             project_id=project.id,
 
             parent_id=request.parent_id,
 
-            title=request.title,
+            requirement_id=
+                request.requirement_id,
 
-            content=request.content
+            module=
+                request.module,
+
+            priority=
+                request.priority,
+
+            version=
+                request.version,
+
+            title=
+                request.title,
+
+            description=
+                request.description,
+
+            validation_conditions=
+                request.validation_conditions,
+
+            status=
+                request.status
         )
 
         db.add(sfd_doc)
@@ -331,15 +349,6 @@ def create_sfd(
             "message":
                 "SFD créé avec succès",
 
-            "project": {
-
-                "id":
-                    project.id,
-
-                "name":
-                    project.name
-            },
-
             "sfd": {
 
                 "id":
@@ -351,18 +360,21 @@ def create_sfd(
         }
 
     finally:
+
         db.close()
 
 
-# =========================
+# =====================================================
 # GENERATE TESTS FROM SFD
-# =========================
+# =====================================================
 
 @router.post(
     "/projects/{project_id}/sfd/generate"
 )
 def generate_tests_from_sfd(
+
     project_id: int,
+
     request: SFDGenerateRequest
 ):
 
@@ -377,7 +389,6 @@ def generate_tests_from_sfd(
 
     try:
 
-        # CHECK PROJECT
         project = db.query(Project).filter(
             Project.id == project_id
         ).first()
@@ -389,7 +400,6 @@ def generate_tests_from_sfd(
                 detail="Projet non trouvé"
             )
 
-        # OPENROUTER HEADERS
         headers = {
 
             "Authorization":
@@ -399,7 +409,6 @@ def generate_tests_from_sfd(
                 "application/json"
         }
 
-        # PAYLOAD
         payload = {
 
             "model":
@@ -414,12 +423,12 @@ def generate_tests_from_sfd(
                     "role": "user",
 
                     "content":
-                        PROMPT + request.sfd_content
+                        PROMPT +
+                        request.sfd_content
                 }
             ]
         }
 
-        # API CALL
         try:
 
             res = requests.post(
@@ -447,6 +456,7 @@ def generate_tests_from_sfd(
             )
 
         # CLEAN JSON
+
         try:
 
             text = re.sub(
@@ -468,22 +478,12 @@ def generate_tests_from_sfd(
             if start == -1 or end == -1:
 
                 raise ValueError(
-                    "JSON non trouvé"
+                    "JSON invalide"
                 )
 
             tests = json.loads(
                 text[start:end + 1]
             )
-
-            if not isinstance(
-                tests,
-                list
-            ):
-
-                raise HTTPException(
-                    status_code=500,
-                    detail="Format IA invalide"
-                )
 
         except Exception as e:
 
@@ -492,14 +492,27 @@ def generate_tests_from_sfd(
                 detail=f"Erreur parsing: {e}"
             )
 
-        # CREATE SFD
+        # CREATE AUTO SFD
+
         sfd_doc = SFDDocument(
 
             project_id=project.id,
 
+            requirement_id="AUTO",
+
+            module="AUTO",
+
+            priority="Haute",
+
+            version="v1.0",
+
             title=request.sfd_title,
 
-            content=request.sfd_content
+            description=request.sfd_content,
+
+            validation_conditions="IA",
+
+            status="Draft"
         )
 
         db.add(sfd_doc)
@@ -507,36 +520,16 @@ def generate_tests_from_sfd(
         db.commit()
 
         db.refresh(sfd_doc)
-
         # SAVE TESTS
+        # SAVE TESTS
+
         saved = 0
 
-        for t in tests:
-
-            # VALIDATION
-            if not isinstance(
-                t.get("etapes"),
-                list
-            ):
-
-                continue
-
-            if len(
-                t.get("etapes", [])
-            ) < 2:
-
-                continue
-
-            if not isinstance(
-                t.get(
-                    "resultats_attendus"
-                ),
-                list
-            ):
-
-                continue
+        for index, t in enumerate(tests):
 
             test_case = TestCase(
+
+                project_id=project.id,
 
                 sfd_id=sfd_doc.id,
 
@@ -545,12 +538,338 @@ def generate_tests_from_sfd(
                     1
                 ),
 
+                title=(
+
+                    t.get("titre")
+
+                    or t.get("title")
+
+                    or f"Scénario métier {index + 1}"
+                ),
+
+                regle_metier=(
+
+                    t.get("regle_metier")
+
+                    or t.get("scenario")
+
+                    or t.get("description")
+
+                    or "Règle métier automatique"
+                ),
+
+                priorite=(
+
+                    t.get("priorite")
+
+                    or t.get("priority")
+
+                    or "Moyenne"
+                ),
+
+                severite=(
+
+                    t.get("severite")
+
+                    or t.get("severity")
+
+                    or "Moyenne"
+                ),
+
+                type=(
+
+                    t.get("type")
+
+                    or "Nominal"
+                ),
+
+                score=95,
+
+                status=(
+
+                    t.get("status")
+
+                    or "draft"
+                ),
+
+                ai_confidence=95
+            )
+
+            db.add(test_case)
+
+            db.flush()
+
+            # SAVE STEPS
+
+            for idx, step_text in enumerate(
+
+                t.get("steps")
+
+                or t.get("etapes")
+
+                or []
+            ):
+
+                step = TestStep(
+
+                    test_case_id=test_case.id,
+
+                    step_order=idx + 1,
+
+                    description=step_text
+                )
+
+                db.add(step)
+
+            saved += 1
+
+        db.commit()
+
+        return {
+
+            "message":
+                "Tests IA générés",
+
+            "generated":
+                len(tests),
+
+            "saved":
+                saved
+        }
+
+    finally:
+
+        db.close()
+
+# =====================================================
+# UPLOAD SFD FILE
+# =====================================================
+
+# =====================================================
+# UPLOAD SFD FILE
+# =====================================================
+
+@router.post(
+    "/projects/{project_id}/sfd/upload"
+)
+async def upload_sfd_file(
+
+    project_id: int,
+
+    file: UploadFile = File(...)
+):
+
+    db = SessionLocal()
+
+    try:
+
+        project = db.query(Project).filter(
+            Project.id == project_id
+        ).first()
+
+        if not project:
+
+            raise HTTPException(
+
+                status_code=404,
+
+                detail="Projet introuvable"
+            )
+
+        # =========================
+        # CREATE UPLOADS FOLDER
+        # =========================
+
+        os.makedirs(
+            "uploads",
+            exist_ok=True
+        )
+
+        filepath = (
+            f"uploads/{file.filename}"
+        )
+
+        # =========================
+        # READ FILE
+        # =========================
+
+        content = await file.read()
+
+        # SAVE FILE
+
+        with open(
+            filepath,
+            "wb"
+        ) as f:
+
+            f.write(content)
+
+        # =========================
+        # EXTRACT PDF TEXT
+        # =========================
+
+        extracted_text = ""
+
+        if file.filename.endswith(".pdf"):
+
+            pdf_reader = PdfReader(
+                io.BytesIO(content)
+            )
+
+            for page in pdf_reader.pages:
+
+                text = page.extract_text()
+
+                if text:
+
+                    extracted_text += (
+                        text + "\n"
+                    )
+
+        else:
+
+            extracted_text = (
+                content.decode(
+                    "utf-8",
+                    errors="ignore"
+                )
+            )
+
+        # =========================
+        # SAVE SFD
+        # =========================
+        # =========================
+        # SAVE SFD
+        # =========================
+
+        sfd = SFDDocument(
+
+            project_id=project.id,
+
+            requirement_id="AUTO",
+
+            module="UPLOAD",
+
+            priority="Haute",
+
+            version="v1.0",
+
+            title=file.filename,
+
+            description=extracted_text,
+
+            validation_conditions=
+                "Upload automatique",
+
+            status="Draft"
+        )
+
+        db.add(sfd)
+
+        db.commit()
+
+        db.refresh(sfd)
+
+        # =========================
+        # GENERATE IA TESTS
+        # =========================
+
+        headers = {
+
+            "Authorization":
+                f"Bearer {API_KEY}",
+
+            "Content-Type":
+                "application/json"
+        }
+
+        payload = {
+
+            "model":
+                "openrouter/auto",
+
+            "temperature":
+                0.1,
+
+            "messages": [
+
+                {
+                    "role": "user",
+
+                    "content":
+                        PROMPT + extracted_text
+                }
+            ]
+        }
+
+        res = requests.post(
+
+            "https://openrouter.ai/api/v1/chat/completions",
+
+            headers=headers,
+
+            json=payload,
+
+            timeout=60
+        )
+
+        data = res.json()
+
+        content_ai = data[
+            "choices"
+        ][0]["message"]["content"]
+
+        # =========================
+        # CLEAN JSON
+        # =========================
+
+        text = re.sub(
+            r"```json",
+            "",
+            content_ai
+        )
+
+        text = re.sub(
+            r"```",
+            "",
+            text
+        ).strip()
+
+        start = text.find("[")
+
+        end = text.rfind("]")
+
+        tests = json.loads(
+            text[start:end + 1]
+        )
+
+        # =========================
+        # SAVE TESTS
+        # =========================
+
+        saved = 0
+
+        for index, t in enumerate(tests):
+
+            test_case = TestCase(
+
+                project_id=project.id,
+
+                sfd_id=sfd.id,
+
+                version=t.get(
+                    "version",
+                    1
+                ),
+
                 title=t.get(
-                    "titre"
+                    "titre",
+                    f"Test {index + 1}"
                 ),
 
                 regle_metier=t.get(
-                    "regle_metier"
+                    "regle_metier",
+                    "Règle métier"
                 ),
 
                 priorite=t.get(
@@ -568,19 +887,35 @@ def generate_tests_from_sfd(
                     "Nominal"
                 ),
 
-                score=0,
+                score=95,
 
                 status=t.get(
                     "status",
                     "draft"
                 ),
 
-                ai_confidence=95,
-
-                generated_script=""
+                ai_confidence=95
             )
 
             db.add(test_case)
+
+            db.flush()
+
+            for idx, step_text in enumerate(
+
+                t.get("etapes", [])
+            ):
+
+                step = TestStep(
+
+                    test_case_id=test_case.id,
+
+                    step_order=idx + 1,
+
+                    description=step_text
+                )
+
+                db.add(step)
 
             saved += 1
 
@@ -589,35 +924,20 @@ def generate_tests_from_sfd(
         return {
 
             "message":
-                "Tests générés avec succès",
+                "SFD uploadé + tests générés",
 
-            "project": {
+            "sfd_id":
+                sfd.id,
 
-                "id":
-                    project.id,
+            "generated_tests":
+                saved,
 
-                "name":
-                    project.name
-            },
+            "filename":
+                file.filename,
 
-            "sfd": {
-
-                "id":
-                    sfd_doc.id,
-
-                "title":
-                    sfd_doc.title
-            },
-
-            "statistics": {
-
-                "generated":
-                    len(tests),
-
-                "saved":
-                    saved
-            }
+            "preview":
+                extracted_text[:500]
         }
-
     finally:
+
         db.close()

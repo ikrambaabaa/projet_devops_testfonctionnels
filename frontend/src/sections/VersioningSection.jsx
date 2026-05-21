@@ -16,6 +16,12 @@ function VersioningSection({
   const [logs, setLogs] =
     useState([]);
 
+  const [modules, setModules] =
+    useState([]);
+
+  const [showReadyOnly, setShowReadyOnly] =
+    useState(false);
+
   const [stats, setStats] =
     useState({
 
@@ -54,14 +60,16 @@ function VersioningSection({
 
         .then((data) => {
 
-          console.log(data);
-
           setVersions(
             data.versions || []
           );
 
           setLogs(
             data.logs || []
+          );
+
+          setModules(
+            data.modules || []
           );
 
           setStats({
@@ -108,20 +116,14 @@ function VersioningSection({
 
       try {
 
-        const response =
-          await fetch(
+        await fetch(
 
-            `http://127.0.0.1:8000/api/projects/${projectId}/versioning/create`,
+          `http://127.0.0.1:8000/api/projects/${projectId}/versioning/create`,
 
-            {
-              method: "POST",
-            }
-          );
-
-        const data =
-          await response.json();
-
-        console.log(data);
+          {
+            method: "POST",
+          }
+        );
 
         alert(
           "Nouvelle version créée"
@@ -134,6 +136,80 @@ function VersioningSection({
         console.log(err);
       }
     };
+
+
+  // =========================
+  // DELETE VERSION
+  // =========================
+
+  const deleteVersion =
+    async (id) => {
+
+      try {
+
+        await fetch(
+
+          `http://127.0.0.1:8000/api/version/${id}`,
+
+          {
+            method: "DELETE",
+          }
+        );
+
+        loadVersioning();
+
+      } catch (err) {
+
+        console.log(err);
+      }
+    };
+
+
+  // =========================
+  // RUN QA
+  // =========================
+  const runQA =
+  async (versionId) => {
+
+    try {
+
+      const response =
+        await fetch(
+
+          `http://127.0.0.1:8000/api/projects/${projectId}/version/${versionId}/run`,
+
+          {
+            method: "POST",
+          }
+        );
+
+      const data =
+        await response.json();
+
+      alert(data.message);
+
+    } catch (err) {
+
+      console.log(err);
+    }
+  };
+
+
+  // =========================
+  // FILTER MODULES
+  // =========================
+
+  const displayedModules =
+
+    showReadyOnly
+
+      ? modules.filter(
+
+          (m) =>
+            m.status === "Ready"
+        )
+
+      : modules;
 
 
   // =========================
@@ -221,7 +297,7 @@ function VersioningSection({
                 fontSize: "30px",
               }}
             >
-              Versioning QA
+              QA Release Center
             </h2>
 
             <p
@@ -230,7 +306,7 @@ function VersioningSection({
                 opacity: 0.85,
               }}
             >
-              Gestion intelligente des versions SFD et Tests
+              Gestion avancée des releases QA
             </p>
 
           </div>
@@ -240,7 +316,7 @@ function VersioningSection({
             onClick={createVersion}
             style={createBtn}
           >
-            Nouvelle Version
+            + Nouvelle Version
           </button>
 
         </div>
@@ -310,13 +386,9 @@ function VersioningSection({
             </h3>
 
             <p style={sectionDesc}>
-              Suivi des changements QA
+              Releases QA du projet
             </p>
 
-          </div>
-
-          <div style={badgeStyle}>
-            HISTORY
           </div>
 
         </div>
@@ -335,6 +407,7 @@ function VersioningSection({
               <th>Type</th>
               <th>Date</th>
               <th>Status</th>
+              <th>Actions</th>
             </tr>
 
           </thead>
@@ -382,13 +455,53 @@ function VersioningSection({
 
                                 ? successBadge
 
-                                : draftBadge
+                                : version.status ===
+                                  "Blocked"
+
+                                ? blockedBadge
+
+                                : progressBadge
                             }
                           >
                             {
                               version.status
                             }
                           </span>
+
+                        </td>
+
+                        <td>
+
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "10px",
+                            }}
+                          >
+
+                            <button
+                              onClick={() =>
+                                runQA(
+                                  version.id
+                                )
+                              }
+                              style={runBtn}
+                            >
+                              Run QA
+                            </button>
+
+                            <button
+                              onClick={() =>
+                                deleteVersion(
+                                  version.id
+                                )
+                              }
+                              style={deleteBtn}
+                            >
+                              Delete
+                            </button>
+
+                          </div>
 
                         </td>
 
@@ -400,7 +513,7 @@ function VersioningSection({
 
                   <tr>
 
-                    <td colSpan="4">
+                    <td colSpan="5">
                       Aucune version
                     </td>
 
@@ -423,17 +536,13 @@ function VersioningSection({
           <div>
 
             <h3 style={sectionTitle}>
-              Changelog QA
+              Release Notes
             </h3>
 
             <p style={sectionDesc}>
-              Historique des modifications
+              Historique QA
             </p>
 
-          </div>
-
-          <div style={badgeStyle}>
-            LOGS
           </div>
 
         </div>
@@ -481,6 +590,124 @@ function VersioningSection({
       </div>
 
 
+      {/* MODULES */}
+
+      <div style={sectionCard}>
+
+        <div style={sectionHeader}>
+
+          <div>
+
+            <h3 style={sectionTitle}>
+              Modules Status
+            </h3>
+
+            <p style={sectionDesc}>
+              Avancement développement
+            </p>
+
+          </div>
+
+
+          <button
+            onClick={() =>
+              setShowReadyOnly(
+                !showReadyOnly
+              )
+            }
+            style={filterBtn}
+          >
+            {
+
+              showReadyOnly
+
+                ? "Afficher Tous"
+
+                : "Ready Only"
+            }
+          </button>
+
+        </div>
+
+        <table width="100%">
+
+          <thead>
+
+            <tr>
+
+              <th>Module</th>
+
+              <th>Status</th>
+
+            </tr>
+
+          </thead>
+
+          <tbody>
+
+            {
+
+              displayedModules?.length > 0
+
+                ? displayedModules?.map(
+
+                    (
+                      module,
+                      index
+                    ) => (
+
+                      <tr key={index}>
+
+                        <td>
+                          {module.name}
+                        </td>
+
+                        <td>
+
+                          <span
+                            style={
+
+                              module.status ===
+                              "Ready"
+
+                                ? successBadge
+
+                                : module.status ===
+                                  "Blocked"
+
+                                ? blockedBadge
+
+                                : progressBadge
+                            }
+                          >
+                            {module.status}
+                          </span>
+
+                        </td>
+
+                      </tr>
+                    )
+                  )
+
+                : (
+
+                  <tr>
+
+                    <td colSpan="2">
+                      Aucun module
+                    </td>
+
+                  </tr>
+                )
+            }
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+
       {/* FLOW */}
       <div style={sectionCard}>
 
@@ -489,17 +716,13 @@ function VersioningSection({
           <div>
 
             <h3 style={sectionTitle}>
-              Workflow Versioning
+              Workflow QA
             </h3>
 
             <p style={sectionDesc}>
-              Processus lifecycle QA
+              Lifecycle release QA
             </p>
 
-          </div>
-
-          <div style={badgeStyle}>
-            FLOW
           </div>
 
         </div>
@@ -524,7 +747,7 @@ function VersioningSection({
           </div>
 
           <div style={flowCard}>
-            Génération IA
+            Tests IA
           </div>
 
           <div style={arrowStyle}>
@@ -540,7 +763,7 @@ function VersioningSection({
           </div>
 
           <div style={flowCard}>
-            Release
+            Modules Ready
           </div>
 
           <div style={arrowStyle}>
@@ -548,7 +771,15 @@ function VersioningSection({
           </div>
 
           <div style={flowCard}>
-            Pipeline GitLab
+            Pipeline QA
+          </div>
+
+          <div style={arrowStyle}>
+            →
+          </div>
+
+          <div style={flowCard}>
+            Playwright
           </div>
 
         </div>
@@ -583,52 +814,124 @@ const sectionDesc = {
   color: "#64748b",
 };
 
-const badgeStyle = {
-  background: "#dbeafe",
-  color: "#2563eb",
-  padding: "8px 14px",
-  borderRadius: "20px",
-};
-
 const successBadge = {
+
   background: "#dcfce7",
+
   color: "#166534",
+
   padding: "6px 12px",
+
   borderRadius: "20px",
 };
 
-const draftBadge = {
-  background: "#fef3c7",
-  color: "#92400e",
+const progressBadge = {
+
+  background: "#dbeafe",
+
+  color: "#1d4ed8",
+
   padding: "6px 12px",
+
+  borderRadius: "20px",
+};
+
+const blockedBadge = {
+
+  background: "#fee2e2",
+
+  color: "#991b1b",
+
+  padding: "6px 12px",
+
   borderRadius: "20px",
 };
 
 const createBtn = {
-  background: "white",
-  color: "#2563eb",
+
+  background:
+    "linear-gradient(135deg,#2563eb,#7c3aed)",
+
+  color: "white",
+
   border: "none",
+
   padding: "14px 22px",
+
   borderRadius: "14px",
+
   cursor: "pointer",
+
   fontWeight: "700",
 };
 
+const deleteBtn = {
+
+  background: "#ef4444",
+
+  color: "white",
+
+  border: "none",
+
+  padding: "8px 12px",
+
+  borderRadius: "10px",
+
+  cursor: "pointer",
+};
+
+const runBtn = {
+
+  background: "#2563eb",
+
+  color: "white",
+
+  border: "none",
+
+  padding: "8px 12px",
+
+  borderRadius: "10px",
+
+  cursor: "pointer",
+};
+
+const filterBtn = {
+
+  background: "#e2e8f0",
+
+  border: "none",
+
+  padding: "10px 14px",
+
+  borderRadius: "10px",
+
+  cursor: "pointer",
+};
+
 const logCard = {
+
   background: "#f8fafc",
+
   padding: "16px",
+
   borderRadius: "14px",
 };
 
 const flowCard = {
+
   background: "#f8fafc",
+
   padding: "16px 24px",
+
   borderRadius: "14px",
+
   fontWeight: "600",
 };
 
 const arrowStyle = {
+
   fontSize: "24px",
+
   color: "#64748b",
 };
 

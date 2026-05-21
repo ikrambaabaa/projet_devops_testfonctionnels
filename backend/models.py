@@ -53,7 +53,10 @@ class SFDDocument(Base):
 
     __tablename__ = "sfd_document"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(
+        Integer,
+        primary_key=True
+    )
 
     project_id = Column(
         Integer,
@@ -66,9 +69,42 @@ class SFDDocument(Base):
         nullable=True
     )
 
-    title = Column(String(255))
+    requirement_id = Column(
+        String(100)
+    )
 
-    content = Column(Text)
+    module = Column(
+        String(255)
+    )
+
+    priority = Column(
+        String(50)
+    )
+
+    version = Column(
+        String(50)
+    )
+
+    title = Column(
+        String(255)
+    )
+
+    description = Column(
+        Text
+    )
+
+    validation_conditions = Column(
+        Text
+    )
+
+    status = Column(
+        String(50)
+    )
+
+    content = Column(
+        Text,
+        nullable=True
+    )
 
     created_at = Column(
         TIMESTAMP,
@@ -89,7 +125,6 @@ class SFDDocument(Base):
         back_populates="sfd"
     )
 
-
 # =========================
 # TEST CASE
 # =========================
@@ -100,7 +135,15 @@ class TestCase(Base):
 
     id = Column(Integer, primary_key=True)
     project_id = Column(Integer)
+    module_id = Column(
+    Integer,
+    nullable=True
+)
 
+    version_id = Column(
+    Integer,
+    nullable=True
+)
     sfd_id = Column(
         Integer,
         ForeignKey("sfd_document.id")
@@ -115,6 +158,7 @@ class TestCase(Base):
     version = Column(Integer)
 
     title = Column(String(500))
+    ai_confidence = Column(Integer, default=90)
 
     regle_metier = Column(Text)
 
@@ -153,8 +197,16 @@ class TestCase(Base):
         "TestExecution",
         back_populates="test_case"
     )
+    module_id = Column(
+    Integer,
+    nullable=True
+)
 
-
+version_id = Column(
+    Integer,
+    nullable=True
+)
+    
 # =========================
 # TEST STEP
 # =========================
@@ -238,6 +290,7 @@ class TestExecution(Base):
         server_default=func.now()
     )
 
+    coverage = Column(Integer, default=0)
     executed_by = Column(String(255))
 
     environment = Column(String(255))
@@ -255,7 +308,7 @@ class TestExecution(Base):
         "StepResult",
         back_populates="execution"
     )
-
+    pipeline_name = Column(String)
 
 # =========================
 # STEP RESULT
@@ -436,5 +489,41 @@ class WorkflowStep(Base):
 
     created_at = Column(
         DateTime,
+        default=datetime.utcnow
+    )
+    # =========================
+# MODULE
+# =========================
+
+class Module(Base):
+
+    __tablename__ = "modules"
+
+    id = Column(
+        Integer,
+        primary_key=True,
+        index=True
+    )
+
+    project_id = Column(
+        Integer
+    )
+
+    name = Column(
+        String
+    )
+
+    description = Column(
+        String
+    )
+
+    status = Column(
+        String
+    )
+
+    created_at = Column(
+
+        DateTime,
+
         default=datetime.utcnow
     )
